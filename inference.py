@@ -1,11 +1,16 @@
 import os
 import torch
+import torch.nn.parallel.data_parallel
+import torch.serialization
 import argparse
 import numpy as np
 import h5py
 from PIL import Image
 from Hyper import HyperFusion
 from preprocess import preprocess_single_file, postprocess_data
+
+# Add DataParallel to safe globals
+torch.serialization.add_safe_globals([torch.nn.parallel.data_parallel.DataParallel])
 
 def load_model(model_path, device='cuda'):
     """
@@ -21,8 +26,14 @@ def load_model(model_path, device='cuda'):
     # Initialize model with default parameters
     model = HyperFusion(inch=3, dim=64, upscale=4)
     
-    # Load checkpoint
-    checkpoint = torch.load(model_path, map_location=device)
+    # Load checkpoint with weights_only=False for backward compatibility
+    try:
+        checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+    except Exception as e:
+        print(f"Warning: Initial load failed with error: {e}")
+        print("Attempting to load with weights_only=True...")
+        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
+    
     if 'model' in checkpoint:
         model.load_state_dict(checkpoint['model'])
     else:
